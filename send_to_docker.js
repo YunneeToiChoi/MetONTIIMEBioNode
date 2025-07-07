@@ -76,8 +76,16 @@ try {
     console.error('Vui lòng xem lại log lỗi ở trên để xác định nguyên nhân.');
 }
 
-// change work flow
-// tao giao dien cho nguoi dung nhap input file (  tu may nguoi dung )
-// va chon db tu may nguoi dung 
-// sau do upload thi se luu trong docker va ouput ve local nguoi dung va docker
-// co them 1 nut upload history va ouput history de nguoi dung co the xem lai
+// LEGACY SCRIPT - REPLACED WITH WEB INTERFACE
+// This script has been replaced with a modern web interface
+// Run: npm install && npm start
+// Then open: http://localhost:3000
+
+// Web interface features implemented:
+// ✅ User-friendly upload interface  
+// ✅ Database selection from local databases
+// ✅ File upload with progress tracking
+// ✅ Upload history with file management
+// ✅ Job history with status tracking
+// ✅ Results download functionality
+// ✅ Modern responsive UI with Bootstrap

@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MetONTIIME Web Interface</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="style.css" rel="stylesheet">
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container">
+            <a class="navbar-brand" href="#">
+                <i class="fas fa-dna me-2"></i>
+                MetONTIIME Web Interface
+            </a>
+            <div class="navbar-nav ms-auto">
+                <span class="navbar-text">
+                    <i class="fas fa-microscope me-1"></i>
+                    Bioinformatics Pipeline
+                </span>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <!-- Alert container -->
+        <div id="alertContainer"></div>
+
+        <!-- Navigation tabs -->
+        <ul class="nav nav-tabs" id="mainTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="upload-tab" data-bs-toggle="tab" data-bs-target="#upload" type="button" role="tab">
+                    <i class="fas fa-upload me-2"></i>Upload & Analyze
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="upload-history-tab" data-bs-toggle="tab" data-bs-target="#upload-history" type="button" role="tab">
+                    <i class="fas fa-history me-2"></i>Upload History
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="job-history-tab" data-bs-toggle="tab" data-bs-target="#job-history" type="button" role="tab">
+                    <i class="fas fa-tasks me-2"></i>Analysis Jobs
+                </button>
+            </li>
+        </ul>
+
+        <div class="tab-content mt-4" id="mainTabContent">
+            <!-- Upload & Analyze Tab -->
+            <div class="tab-pane fade show active" id="upload" role="tabpanel">
+                <div class="row">
+                    <div class="col-lg-8">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="mb-0">
+                                    <i class="fas fa-file-upload me-2"></i>
+                                    Select Input File
+                                </h5>
+                            </div>
+                            <div class="card-body">
+                                <!-- Input method selection -->
+                                <div class="mb-3">
+                                    <label class="form-label">Input Method</label>
+                                    <div class="btn-group w-100" role="group">
+                                        <input type="radio" class="btn-check" name="inputMethod" id="uploadMethod" value="upload" checked>
+                                        <label class="btn btn-outline-primary" for="uploadMethod">
+                                            <i class="fas fa-upload me-1"></i>Upload File
+                                        </label>
+                                        
+                                        <input type="radio" class="btn-check" name="inputMethod" id="browseMethod" value="browse">
+                                        <label class="btn btn-outline-primary" for="browseMethod">
+                                            <i class="fas fa-folder-open me-1"></i>Browse System
+                                        </label>
+                                    </div>
+                                </div>
+
+                                <!-- Upload Section -->
+                                <div id="uploadSection">
+                                    <form id="uploadForm" enctype="multipart/form-data">
+                                        <div class="mb-3">
+                                            <label for="inputFile" class="form-label">
+                                                Select FASTQ/FASTA file (supports .gz compression)
+                                            </label>
+                                            <input type="file" class="form-control" id="inputFile" name="inputFile" 
+                                                   accept=".fastq,.fasta,.fq,.fa,.fastq.gz,.fasta.gz,.fq.gz,.fa.gz">
+                                            <div class="form-text">
+                                                Accepted formats: .fastq, .fasta, .fq, .fa (with or without .gz compression)
+                                            </div>
+                                        </div>
+                                    </form>
+                                </div>
+
+                                <!-- Browse Section -->
+                                <div id="browseSection" style="display: none;">
+                                    <div class="mb-3">
+                                        <label class="form-label">Quick Access</label>
+                                        <div id="commonDirectories" class="btn-group-vertical w-100"></div>
+                                    </div>
+                                    
+                                    <div class="mb-3">
+                                        <label class="form-label">Current Path</label>
+                                        <div class="input-group">
+                                            <input type="text" class="form-control" id="currentPath" readonly>
+                                            <button class="btn btn-outline-secondary" type="button" id="goUpButton">
+                                                <i class="fas fa-level-up-alt"></i> Up
+                                            </button>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="mb-3">
+                                        <label class="form-label">Browse Files & Folders</label>
+                                        <div id="fileBrowser" class="border rounded p-2" style="height: 300px; overflow-y: auto;">
+                                            <div class="text-center py-4">
+                                                <div class="spinner-border" role="status">
+                                                    <span class="visually-hidden">Loading...</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="mb-3">
+                                        <label class="form-label">Selected File</label>
+                                        <input type="text" class="form-control" id="selectedFilePath" readonly placeholder="No file selected">
+                                    </div>
+                                </div>
+
+                                <!-- Analysis Configuration -->
+                                <div id="analysisConfig" style="display: none;">
+                                    <hr>
+                                    <h6><i class="fas fa-cogs me-2"></i>Analysis Configuration</h6>
+                                    
+                                    <div class="mb-3">
+                                        <label for="jobName" class="form-label">Job Name (optional)</label>
+                                        <input type="text" class="form-control" id="jobName" 
+                                               placeholder="Enter a name for this analysis job">
+                                    </div>
+
+                                    <div class="mb-3">
+                                        <label for="database" class="form-label">Select Database</label>
+                                        <select class="form-select" id="database" required>
+                                            <option value="">Loading databases...</option>
+                                        </select>
+                                    </div>
+
+                                    <div class="mb-3">
+                                        <label for="outputPath" class="form-label">
+                                            <i class="fas fa-folder-open me-1"></i>
+                                            Output Directory
+                                        </label>
+                                        <div class="input-group">
+                                            <input type="text" class="form-control" id="outputPath" 
+                                                   placeholder="Click Browse to select output location">
+                                            <button class="btn btn-outline-primary" type="button" id="browseOutputButton">
+                                                <i class="fas fa-folder-open me-1"></i> Browse
+                                            </button>
+                                        </div>
+                                        <div class="form-text">
+                                            <strong>Required:</strong> Choose where to save analysis results on your computer
+                                        </div>
+                                    </div>
+
+                                    <div class="progress mb-3" id="uploadProgress" style="display: none;">
+                                        <div class="progress-bar" role="progressbar" style="width: 0%"></div>
+                                    </div>
+
+                                    <button type="button" class="btn btn-primary" id="startAnalysisBtn">
+                                        <i class="fas fa-play me-2"></i>
+                                        Start Analysis
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-lg-4">
+                        <div class="card">
+                            <div class="card-header">
+                                <h6 class="mb-0">
+                                    <i class="fas fa-info-circle me-2"></i>
+                                    Information
+                                </h6>
+                            </div>
+                            <div class="card-body">
+                                <h6>Workflow Steps:</h6>
+                                <ol class="small">
+                                    <li>Upload your FASTQ/FASTA file</li>
+                                    <li>Select appropriate database</li>
+                                    <li>Start analysis</li>
+                                    <li>Monitor progress in Analysis Jobs</li>
+                                    <li>Download results when complete</li>
+                                </ol>
+                                
+                                <hr>
+                                
+                                <h6>File Requirements:</h6>
+                                <ul class="small">
+                                    <li>FASTQ or FASTA format</li>
+                                    <li>Gzip compression supported</li>
+                                    <li>Maximum file size: 10GB</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Upload History Tab -->
+            <div class="tab-pane fade" id="upload-history" role="tabpanel">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">
+                            <i class="fas fa-history me-2"></i>
+                            Upload History
+                        </h5>
+                        <button class="btn btn-outline-primary btn-sm" onclick="loadUploadHistory()">
+                            <i class="fas fa-sync-alt me-1"></i>
+                            Refresh
+                        </button>
+                    </div>
+                    <div class="card-body">
+                        <div id="uploadHistoryContent">
+                            <div class="text-center py-4">
+                                <div class="spinner-border" role="status">
+                                    <span class="visually-hidden">Loading...</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Job History Tab -->
+            <div class="tab-pane fade" id="job-history" role="tabpanel">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">
+                            <i class="fas fa-tasks me-2"></i>
+                            Analysis Jobs
+                        </h5>
+                        <button class="btn btn-outline-primary btn-sm" onclick="loadJobHistory()">
+                            <i class="fas fa-sync-alt me-1"></i>
+                            Refresh
+                        </button>
+                    </div>
+                    <div class="card-body">
+                        <div id="jobHistoryContent">
+                            <div class="text-center py-4">
+                                <div class="spinner-border" role="status">
+                                    <span class="visually-hidden">Loading...</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Job Results Modal -->
+    <div class="modal fade" id="resultsModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-download me-2"></i>
+                        Analysis Results
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="resultsContent"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Directory Browser Modal -->
+    <div class="modal fade" id="directoryModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-folder-open me-2"></i>
+                        Select Output Directory
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i>
+                        Choose a directory on your computer where analysis results will be saved. 
+                        A new folder with your job ID will be created inside the selected directory.
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Quick Access</label>
+                        <div class="btn-group-vertical w-100" id="modalCommonDirectories">
+                            <button type="button" class="btn btn-outline-secondary btn-sm text-start" onclick="app.modalBrowsePath('/home')">
+                                <i class="fas fa-home me-2"></i>Home Directory
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary btn-sm text-start" onclick="app.modalBrowsePath('/home/vannang/Documents')">
+                                <i class="fas fa-file-alt me-2"></i>Documents
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary btn-sm text-start" onclick="app.modalBrowsePath('/home/vannang/Desktop')">
+                                <i class="fas fa-desktop me-2"></i>Desktop
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Current Path</label>
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="modalCurrentPath" readonly>
+                            <button class="btn btn-outline-secondary" type="button" id="modalGoUpButton">
+                                <i class="fas fa-level-up-alt"></i> Up
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Directories</label>
+                        <div id="modalDirectoryBrowser" class="border rounded p-2" style="height: 400px; overflow-y: auto;">
+                            <div class="text-center py-4">
+                                <div class="spinner-border" role="status">
+                                    <span class="visually-hidden">Loading...</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times me-1"></i>Cancel
+                    </button>
+                    <button type="button" class="btn btn-primary" id="selectDirectoryButton">
+                        <i class="fas fa-check me-1"></i>Select This Directory
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>

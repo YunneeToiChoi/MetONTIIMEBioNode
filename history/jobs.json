@@ -1,0 +1,41 @@
+[
+  {
+    "id": "47dfab91-d01a-4d06-83c5-3d1d79f7b463",
+    "name": "test1",
+    "fileId": "c438b139-1cec-45bf-9796-3ae60805e3d9",
+    "fileName": "Zymo-GridION-EVEN-BB-SN_sup_pass_filtered_27F_1492Rw_1000_reads.fastq.gz",
+    "database": {
+      "name": "card_db",
+      "fastaFile": "nucleotide_fasta_protein_knockout_model.fasta",
+      "tsvFile": "aro_index.tsv",
+      "path": "/home/vannang/Documents/BioB/my-metontiime-app/databases/card_db"
+    },
+    "status": "failed",
+    "startTime": "2025-07-07T07:52:34.977Z",
+    "outputDir": "/home/vannang/Documents/BioB/my-metontiime-app/outputs/47dfab91-d01a-4d06-83c5-3d1d79f7b463",
+    "message": "Lỗi: Command failed:          docker run --rm             -v \"/home/vannang/Documents/BioB/my-metontiime-app/uploads\":/app/input             -v \"/home/vannang/Documents/BioB/my-metontiime-app/outputs/47dfab91-d01a-4d06-83c5-3d1d79f7b463\":/app/output             -v \"/home/vannang/Documents/BioB/my-metontiime-app/databases/card_db\":/app/databases/db             -v \"/home/vannang/Documents/BioB/MetONTIIME\":/app/src             -v \"/var/run/docker.sock\":\"/var/run/docker.sock\"             metontiime-image             nextflow run /app/src/metontiime2.nf -profile docker                 --workDir /app/input                 --resultsDir /app/output                 --dbSequencesFasta \"/app/databases/db/nucleotide_fasta_protein_knockout_model.fasta\"                 --dbTaxonomyTsv \"/app/databases/db/aro_index.tsv\"                 --threads 8         ",
+    "lastUpdate": "2025-07-07T07:52:35.086Z",
+    "endTime": "2025-07-07T07:52:35.086Z"
+  },
+  {
+    "id": "44b4e090-26e2-44f4-b02e-4e50dba45806",
+    "name": "ds",
+    "fileId": "407764dc-ef84-48aa-aba7-9b4bbefa9461",
+    "fileName": "Zymo-GridION-EVEN-BB-SN_sup_pass_filtered_27F_1492Rw_1000_reads.fastq.gz",
+    "database": {
+      "name": "CARD Database",
+      "fastaFile": "nucleotide_fasta_protein_knockout_model.fasta",
+      "tsvFile": "aro_index.tsv",
+      "jsonFile": "card.json",
+      "path": "databases/card_db",
+      "description": "Comprehensive Antibiotic Resistance Database"
+    },
+    "status": "completed",
+    "startTime": "2025-07-07T08:30:03.214Z",
+    "outputDir": "/home/vannang/Desktop/MetONTIIME_job_44b4e090-26e2-44f4-b02e-4e50dba45806",
+    "customOutput": true,
+    "message": "Phân tích hoàn tất",
+    "lastUpdate": "2025-07-07T08:30:12.012Z",
+    "endTime": "2025-07-07T08:30:12.012Z"
+  }
+]
