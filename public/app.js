@@ -4,6 +4,7 @@ class MetONTIIMEApp {
         this.currentBrowsePath = null;
         this.modalCurrentPath = null;
         this.init();
+        this.loadAnalysts();
         this.loadDatabases();
         this.setupEventListeners();
         this.loadCommonDirectories();
@@ -48,6 +49,11 @@ class MetONTIIMEApp {
         // Start analysis button
         document.getElementById('startAnalysisBtn').addEventListener('click', () => {
             this.startAnalysis();
+        });
+
+        // Analyst selection change
+        document.getElementById('analyst').addEventListener('change', (e) => {
+            this.loadDatabasesForAnalyst(e.target.value);
         });
 
         // Browse navigation
@@ -240,6 +246,87 @@ class MetONTIIMEApp {
         if (this.currentBrowsePath) {
             const parentPath = this.currentBrowsePath.split('/').slice(0, -1).join('/') || '/';
             this.browsePath(parentPath);
+        }
+    }
+
+    async loadAnalysts() {
+        try {
+            console.log('Loading available analysts...');
+            const response = await fetch('/api/analysts');
+            
+            if (!response.ok) {
+                throw new Error(`Failed to load analysts: ${response.status}`);
+            }
+            
+            const data = await response.json();
+            const select = document.getElementById('analyst');
+            select.innerHTML = '<option value="">Select an analysis method...</option>';
+            
+            data.analysts.forEach(analyst => {
+                const option = document.createElement('option');
+                option.value = analyst.name;
+                option.textContent = `${analyst.displayName} - ${analyst.description}`;
+                select.appendChild(option);
+            });
+            
+            // Auto-select MetONTIIME if available
+            const metontiimeOption = select.querySelector('option[value="metontiime"]');
+            if (metontiimeOption) {
+                select.value = 'metontiime';
+                this.loadDatabasesForAnalyst('metontiime');
+            }
+            
+            console.log('Analysts loaded successfully');
+            
+        } catch (error) {
+            console.error('Failed to load analysts:', error);
+            this.showAlert('warning', 'Failed to load analysts. Using default MetONTIIME.');
+            
+            // Fallback to MetONTIIME
+            const select = document.getElementById('analyst');
+            select.innerHTML = '<option value="metontiime">MetONTIIME - Metagenomics Analysis Pipeline</option>';
+            select.value = 'metontiime';
+            this.loadDatabases(); // Load default databases
+        }
+    }
+
+    async loadDatabasesForAnalyst(analystName) {
+        if (!analystName) {
+            const select = document.getElementById('database');
+            select.innerHTML = '<option value="">Select analyst first...</option>';
+            return;
+        }
+        
+        try {
+            console.log(`Loading databases for analyst: ${analystName}`);
+            const response = await fetch(`/api/databases?analyst=${encodeURIComponent(analystName)}`);
+            
+            if (!response.ok) {
+                throw new Error(`Failed to load databases: ${response.status}`);
+            }
+            
+            const data = await response.json();
+            const select = document.getElementById('database');
+            select.innerHTML = '<option value="">Select a database...</option>';
+            
+            data.databases.forEach(database => {
+                const option = document.createElement('option');
+                option.value = JSON.stringify(database);
+                option.textContent = `${database.name} - ${database.description}`;
+                select.appendChild(option);
+            });
+            
+            // Auto-select first database if only one available
+            if (data.databases.length === 1) {
+                select.value = JSON.stringify(data.databases[0]);
+            }
+            
+            console.log(`Databases loaded for ${analystName}:`, data.databases.length);
+            
+        } catch (error) {
+            console.error(`Failed to load databases for ${analystName}:`, error);
+            this.showAlert('warning', `Failed to load databases for ${analystName}. Using default.`);
+            this.loadDatabases(); // Fallback to default
         }
     }
 
@@ -718,11 +805,17 @@ class MetONTIIMEApp {
     async startAnalysis() {
         const jobNameInput = document.getElementById('jobName');
         const databaseSelect = document.getElementById('database');
+        const analystSelect = document.getElementById('analyst');
         const outputPathInput = document.getElementById('outputPath');
         const startBtn = document.getElementById('startAnalysisBtn');
         
         if (!this.selectedFile) {
             this.showAlert('warning', 'Please select an input file');
+            return;
+        }
+        
+        if (!analystSelect.value) {
+            this.showAlert('warning', 'Please select an analysis method');
             return;
         }
         
@@ -758,6 +851,7 @@ class MetONTIIMEApp {
             const analysisData = {
                 fileId: fileId,
                 database: JSON.parse(databaseSelect.value),
+                analyst: analystSelect.value,
                 jobName: jobNameInput.value || `Analysis_${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}`,
                 customOutputPath: outputPathInput.value.trim()
             };

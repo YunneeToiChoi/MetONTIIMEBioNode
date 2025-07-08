@@ -7,18 +7,15 @@ const { v4: uuidv4 } = require('uuid');
 const cors = require('cors');
 // const rateLimit = require('express-rate-limit'); // Disabled
 
+// Import AnalystFactory
+const AnalystFactory = require('./analysts/AnalystFactory');
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// ======================= CẤU HÌNH CỨNG =======================
-const DOCKER_IMAGE_NAME = 'metontiime-image';
-const CARD_FASTA_FILE = 'nucleotide_fasta_protein_knockout_model.fasta';
-const CARD_TSV_FILE = 'aro_index.tsv';
-const CPU_THREADS = 8;
-const metontiimeSrcHost = '/home/vannang/Documents/BioB/MetONTIIME';
+// Initialize AnalystFactory
+const analystFactory = new AnalystFactory();
 
-// Đường dẫn database cố định
-const cardDbHost = path.resolve(__dirname, 'databases/card_db');
 
 // Tạo các thư mục cần thiết
 const uploadsDir = path.join(__dirname, 'uploads');
@@ -85,39 +82,69 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// API: Lấy danh sách databases có sẵn (Hardcoded CARD Database)
-app.get('/api/databases', (req, res) => {
+// API: Lấy danh sách analysts có sẵn
+app.get('/api/analysts', (req, res) => {
     try {
-        console.log('Returning hardcoded CARD database...');
+        console.log('Getting available analysts...');
         
-        // Kiểm tra files có tồn tại không
-        const requiredFiles = [
-            { path: path.join(cardDbHost, CARD_FASTA_FILE), name: 'CARD FASTA' },
-            { path: path.join(cardDbHost, CARD_TSV_FILE), name: 'CARD TSV' }
-        ];
+        const analystsInfo = analystFactory.getAllAnalystsInfo();
+        console.log('✅ Available analysts:', analystsInfo.map(a => a.name));
         
-        for (const file of requiredFiles) {
-            if (!fs.existsSync(file.path)) {
-                console.error(`❌ Missing ${file.name}: ${file.path}`);
-                return res.status(500).json({ 
-                    error: `Database file missing: ${file.name}`,
-                    databases: []
-                });
-            }
+        res.json({ analysts: analystsInfo });
+        
+    } catch (error) {
+        console.error('Analysts endpoint error:', error);
+        res.status(500).json({ error: 'Lỗi khi lấy danh sách analysts: ' + error.message });
+    }
+});
+
+// API: Lấy thông tin chi tiết của một analyst
+app.get('/api/analysts/:name', (req, res) => {
+    try {
+        const { name } = req.params;
+        const analystInfo = analystFactory.getAnalystInfo(name);
+        
+        if (!analystInfo) {
+            return res.status(404).json({ error: `Analyst ${name} không tồn tại` });
         }
         
-        // CARD Database cố định
-        const databases = [{
-            name: "CARD Database",
-            fastaFile: CARD_FASTA_FILE,
-            tsvFile: CARD_TSV_FILE,
-            path: cardDbHost,
-            description: "Comprehensive Antibiotic Resistance Database",
-            type: "hardcoded"
-        }];
+        res.json({ analyst: analystInfo });
         
-        console.log('✅ CARD database configuration valid');
-        res.json({ databases });
+    } catch (error) {
+        console.error('Analyst info endpoint error:', error);
+        res.status(500).json({ error: 'Lỗi khi lấy thông tin analyst: ' + error.message });
+    }
+});
+
+// API: Lấy danh sách databases có sẵn (Updated to use analysts)
+app.get('/api/databases', (req, res) => {
+    try {
+        const { analyst } = req.query;
+        console.log(`Getting databases for analyst: ${analyst || 'all'}`);
+        
+        if (analyst) {
+            // Lấy database cho analyst cụ thể
+            const analystInfo = analystFactory.getAnalystInfo(analyst);
+            if (!analystInfo) {
+                return res.status(404).json({ error: `Analyst ${analyst} không tồn tại` });
+            }
+            
+            res.json({ databases: analystInfo.supportedDatabases });
+        } else {
+            // Lấy tất cả database từ tất cả analysts (backward compatibility)
+            const allAnalysts = analystFactory.getAllAnalystsInfo();
+            const allDatabases = [];
+            
+            allAnalysts.forEach(analystInfo => {
+                analystInfo.supportedDatabases.forEach(db => {
+                    if (!allDatabases.find(existing => existing.name === db.name)) {
+                        allDatabases.push(db);
+                    }
+                });
+            });
+            
+            res.json({ databases: allDatabases });
+        }
         
     } catch (error) {
         console.error('Database endpoint error:', error);
@@ -162,13 +189,38 @@ app.post('/api/upload', upload.single('inputFile'), (req, res) => {
     }
 });
 
-// API: Chạy phân tích
+// API: Chạy phân tích (Updated to use AnalystFactory)
 app.post('/api/analyze', (req, res) => {
     try {
-        const { fileId, database, jobName, customOutputPath } = req.body;
+        const { fileId, database, jobName, customOutputPath, analyst } = req.body;
         
-        if (!fileId || !database) {
-            return res.status(400).json({ error: 'Thiếu thông tin file hoặc database' });
+        // Debug logging
+        console.log('📊 Analysis request received:');
+        console.log('- fileId:', fileId);
+        console.log('- database:', database);
+        console.log('- analyst:', analyst);
+        console.log('- jobName:', jobName);
+        console.log('- customOutputPath:', customOutputPath);
+        
+        // Validation với thông báo chi tiết
+        const missingFields = [];
+        if (!fileId) missingFields.push('fileId');
+        if (!database) missingFields.push('database');
+        if (!analyst) missingFields.push('analyst');
+        
+        if (missingFields.length > 0) {
+            const errorMsg = `Thiếu thông tin bắt buộc: ${missingFields.join(', ')}`;
+            console.error('❌ Validation failed:', errorMsg);
+            return res.status(400).json({ 
+                error: errorMsg,
+                received: { fileId, database, analyst, jobName, customOutputPath },
+                missing: missingFields
+            });
+        }
+        
+        // Kiểm tra analyst có tồn tại không
+        if (!analystFactory.hasAnalyst(analyst)) {
+            return res.status(400).json({ error: `Analyst ${analyst} không được hỗ trợ` });
         }
         
         // Tìm file trong upload history
@@ -204,7 +256,7 @@ app.post('/api/analyze', (req, res) => {
                 return res.status(400).json({ error: `Output directory is not writable: ${resolvedOutputPath}` });
             }
             
-            jobOutputDir = path.join(resolvedOutputPath, `MetONTIIME_job_${jobId}`);
+            jobOutputDir = path.join(resolvedOutputPath, `${analyst.toUpperCase()}_job_${jobId}`);
         } else {
             return res.status(400).json({ error: 'Output directory is required. Please select where to save results.' });
         }
@@ -219,7 +271,8 @@ app.post('/api/analyze', (req, res) => {
         // Thông tin job
         const jobInfo = {
             id: jobId,
-            name: jobName || `Analysis_${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}`,
+            name: jobName || `${analyst.toUpperCase()}_Analysis_${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}`,
+            analyst: analyst,
             fileId: fileId,
             fileName: fileInfo.originalName,
             database: database,
@@ -240,15 +293,16 @@ app.post('/api/analyze', (req, res) => {
         jobHistory.push(jobInfo);
         fs.writeFileSync(jobHistoryFile, JSON.stringify(jobHistory, null, 2));
         
-        // Chạy Docker command trong background
+        // Chạy analysis trong background
         setTimeout(() => {
-            runDockerAnalysis(fileInfo, database, jobInfo);
+            runAnalysisWithFactory(fileInfo, database, jobInfo, analyst);
         }, 100);
         
         res.json({ 
             success: true, 
             jobId: jobId,
-            message: 'Phân tích đã được bắt đầu'
+            analyst: analyst,
+            message: `Phân tích với ${analyst.toUpperCase()} đã được bắt đầu`
         });
         
     } catch (error) {
@@ -450,87 +504,52 @@ app.post('/api/select-input-file', (req, res) => {
 
 // ======================= HELPER FUNCTIONS =======================
 
-async function runDockerAnalysis(fileInfo, database, jobInfo) {
+async function runAnalysisWithFactory(fileInfo, database, jobInfo, analystName) {
     const jobHistoryFile = path.join(historyDir, 'jobs.json');
     
     try {
         // Update job status
-        updateJobStatus(jobInfo.id, 'running', 'Đang phân tích...');
+        updateJobStatus(jobInfo.id, 'running', `Đang phân tích với ${analystName.toUpperCase()}...`);
         
-        // Sử dụng cấu hình cứng giống script gốc
-        console.log('Bắt đầu kiểm tra cấu hình...');
+        // Prepare parameters for analyst
+        const analysisParams = {
+            // Required by MetontiimeAnalyst
+            inputFile: fileInfo,
+            outputDir: jobInfo.outputDir,
+            jobName: jobInfo.name,
+            
+            // Additional info for backwards compatibility
+            fileInfo: fileInfo,
+            jobInfo: jobInfo,
+            database: database
+        };
         
-        const requiredPaths = [
-            { path: path.join(cardDbHost, CARD_FASTA_FILE), name: 'File CARD FASTA' },
-            { path: path.join(cardDbHost, CARD_TSV_FILE), name: 'File CARD TSV' },
-            { path: metontiimeSrcHost, name: 'Thư mục mã nguồn MetONTIIME' }
-        ];
+        // Run analysis using AnalystFactory
+        const result = await analystFactory.runAnalysis(analystName, analysisParams);
         
-        for (const item of requiredPaths) {
-            if (!fs.existsSync(item.path)) {
-                console.error(`❌ Lỗi: Không tìm thấy ${item.name} tại: ${item.path}`);
-                throw new Error(`Không tìm thấy ${item.name} tại: ${item.path}`);
+        if (result.success) {
+            updateJobStatus(jobInfo.id, 'completed', `Phân tích ${analystName.toUpperCase()} hoàn tất`);
+            console.log(`\n✅ ${analystName.toUpperCase()} analysis completed!`);
+            
+            if (result.resultFiles && result.resultFiles.length > 0) {
+                console.log('\n--- 📄 Các file kết quả đã được tạo ---');
+                result.resultFiles.forEach(file => console.log(`- ${file}`));
             }
-        }
-        
-        console.log('✅ Cấu hình hợp lệ. Bắt đầu xây dựng lệnh Docker...');
-        
-        // Determine input path for Docker
-        let inputPath;
-        if (fileInfo.isSystemFile) {
-            inputPath = path.dirname(fileInfo.path);
         } else {
-            inputPath = path.dirname(fileInfo.path);
-        }
-        
-        // Ensure output directory exists and is writable
-        if (!fs.existsSync(jobInfo.outputDir)) {
-            fs.mkdirSync(jobInfo.outputDir, { recursive: true });
-        }
-        
-        // Docker command giống như script gốc
-        const dockerCommand = `
-        docker run --rm \
-            -v "${inputPath}":/app/input \
-            -v "${jobInfo.outputDir}":/app/output \
-            -v "${cardDbHost}":/app/databases/card \
-            -v "${metontiimeSrcHost}":/app/src \
-            -v "/var/run/docker.sock":"/var/run/docker.sock" \
-            ${DOCKER_IMAGE_NAME} \
-            nextflow run /app/src/metontiime2.nf -profile docker \
-                --workDir /app/input \
-                --resultsDir /app/output \
-                --dbSequencesFasta "/app/databases/card/${CARD_FASTA_FILE}" \
-                --dbTaxonomyTsv "/app/databases/card/${CARD_TSV_FILE}" \
-                --threads ${CPU_THREADS}
-        `.replace(/\n/g, ' ');
-        
-        console.log('🚀 Đang thực thi lệnh Docker...');
-        console.log(`Input file: ${fileInfo.path}`);
-        console.log(`Output directory: ${jobInfo.outputDir}`);
-        console.log(`FASTA: /app/databases/card/${CARD_FASTA_FILE}`);
-        console.log(`TSV: /app/databases/card/${CARD_TSV_FILE}`);
-        console.log(`\nLệnh được thực thi:\n${dockerCommand}\n`);
-        
-        execSync(dockerCommand, { stdio: 'inherit' });
-        
-        updateJobStatus(jobInfo.id, 'completed', 'Phân tích hoàn tất');
-        console.log('\n✅ Phân tích hoàn tất!');
-        
-        // Check result files
-        const resultFiles = fs.readdirSync(jobInfo.outputDir);
-        if (resultFiles.length > 0) {
-            console.log('\n--- 📄 Các file kết quả đã được tạo ---');
-            resultFiles.forEach(file => console.log(`- ${file}`));
-        } else {
-            console.warn('⚠️ Phân tích chạy xong nhưng không tạo ra file kết quả nào.');
+            throw new Error(result.message || 'Analysis failed');
         }
         
     } catch (error) {
-        console.error('\n❌ Đã xảy ra lỗi nghiêm trọng trong quá trình chạy Docker.');
+        console.error(`\n❌ Đã xảy ra lỗi nghiêm trọng trong quá trình chạy ${analystName.toUpperCase()}.`);
         console.error('Chi tiết lỗi:', error.message);
-        updateJobStatus(jobInfo.id, 'failed', `Lỗi: ${error.message}`);
+        updateJobStatus(jobInfo.id, 'failed', `Lỗi ${analystName.toUpperCase()}: ${error.message}`);
     }
+}
+
+// Legacy function for backward compatibility (nên được deprecated)
+async function runDockerAnalysis(fileInfo, database, jobInfo) {
+    console.warn('⚠️ Using legacy runDockerAnalysis. Consider migrating to AnalystFactory.');
+    return runAnalysisWithFactory(fileInfo, database, jobInfo, 'metontiime');
 }
 
 function updateJobStatus(jobId, status, message) {
@@ -565,6 +584,16 @@ app.listen(PORT, () => {
     console.log(`📁 Uploads directory: ${uploadsDir}`);
     console.log(`📁 Outputs directory: ${outputsDir}`);
     console.log(`📁 History directory: ${historyDir}`);
+    
+    // Display available analysts
+    console.log('\n📊 Available Analysts:');
+    const analysts = analystFactory.getAvailableAnalysts();
+    analysts.forEach(analyst => {
+        const info = analystFactory.getAnalystInfo(analyst);
+        console.log(`  - ${info.name}: ${info.description}`);
+    });
+    
+    console.log(`\n✅ System ready with ${analysts.length} analyst(s)`);
 });
 
 module.exports = app;
