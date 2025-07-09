@@ -135,3 +135,4 @@ class AnalystFactory {
 }
 
 module.exports = AnalystFactory;
+ 
